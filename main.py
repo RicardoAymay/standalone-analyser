@@ -176,10 +176,10 @@ def currencyPairWindow():
             
             associated_candles = candle_numbers
         
-        result = pairAnalysisPattern(pair, time, days_back, time_frame, associated_candles)
+        result = pairAnalysisPattern(pair, time, days_back, time_frame, associated_candles, analyzer_candles_1)
         print(result)
         if result is not None:
-            displayResults(result, pair, time_frame)
+            displayResults(result, pair, time_frame, analyzer_candles_1)
         else:
             singleMessageWindow("Erro", "Deu ruim")
 
@@ -187,8 +187,7 @@ def currencyPairWindow():
     btnAnalisar.grid(column=0, row=len(analyser_object)*2, padx=10, pady=10, sticky="ew")
 
     window.mainloop()
-
-    
+   
     
 def closeWindowAndConnect(window, path):
     
@@ -225,45 +224,18 @@ def pairAnalysisPattern(pair, target_time_str, days_back, time_frame, associated
     
     df = pd.DataFrame(rates)
     df['time'] = pd.to_datetime(df['time'], unit='s')
-    return get_associated_candles(df, target_time, associated_candles_number, associated_candles_string, pair)
+    return get_associated_candles(df, target_time, associated_candles_string, associated_candles_number, pair)
     
 
 def get_associated_candles(df, target_time, associated_candles_string, candle_count, pair):
-    if associated_candles_string == "Antes":
-        try:
-            # Get the index of the target time candle
-            target_index = df.index[df['time'].dt.time == target_time][0]
-        except IndexError:
-            singleMessageWindow("Erro", "Nenhuma vela encontrada para o tempo especificado.")
-            return None
 
-        # Retrieve the candle at target_time plus the candles before it
-        start_index = max(0, target_index - candle_count)
-        # Include the target candle by extending the slice to target_index + 1
-        filtered_df = df.iloc[start_index:target_index + 1]
+    combined_filtered_df = sort_candles(df, target_time, associated_candles_string, candle_count)
     
-    elif associated_candles_string == "Depois":
-        filtered_df = df[df['time'].dt.time == target_time]
-        target_index = filtered_df.index[0]
-        filtered_df = df.iloc[target_index:target_index + candle_count]
-    
-    elif associated_candles_string == "Ambos":
-        filtered_df = df[df['time'].dt.time == target_time]
-        target_index = filtered_df.index[0]
-        start_index = max(0, target_index - candle_count)
-        end_index = target_index + candle_count
-        filtered_df = df.iloc[start_index:end_index]
-    
-    elif associated_candles_string == "Nenhum":
-        filtered_df = df[df['time'].dt.time == target_time]
-    
-    else:
-        singleMessageWindow("Erro", "Erro ao selecionar velas associadas.")
-        return None
-        
     multiplier = 10 ** mt5.symbol_info(pair).digits
-    reduced_df = filtered_df.drop(columns=['real_volume', 'spread', 'tick_volume'])
-    reduced_df['direction'] = reduced_df.apply(lambda row: "subiu" if row['close'] > row['open'] else "desceu", axis=1)
+    reduced_df = combined_filtered_df.drop(columns=['real_volume', 'spread', 'tick_volume'])
+    reduced_df['direction'] = reduced_df.apply(lambda row: "subiu" if pd.notna(row['open']) and pd.notna(row['close']) and row['close'] > row['open'] 
+                                               else ("desceu" if pd.notna(row['open']) and pd.notna(row['close']) and row['close'] < row['open'] 
+                                               else None), axis=1)
     reduced_df['delta'] = reduced_df['close'] - reduced_df['open']
     reduced_df['delta'] = reduced_df['delta'].abs() * multiplier
     reduced_df['subida máxima'] = reduced_df.apply(lambda row: row['high'] - row['open'], axis=1).round(5) * multiplier
@@ -275,12 +247,12 @@ def get_associated_candles(df, target_time, associated_candles_string, candle_co
     return reduced_df
 
 #terceira e quarta tela
-def displayResults(dataframe, pair, timeframe):
+def displayResults(dataframe, pair, timeframe, associated_candles_string):
     if dataframe is None or dataframe.empty:
         singleMessageWindow("Erro", "Nenhum dado disponível para exibir.")
         return
-    print('df1')
-    # Create a new window
+    
+    # Initialize the window and display the table
     results_window = Tk()
     results_window.title("Resultados da Análise")
     results_window.geometry('800x400+700+100')
@@ -288,25 +260,19 @@ def displayResults(dataframe, pair, timeframe):
     results_window.grid_columnconfigure(0, weight=1)
     results_window.grid_rowconfigure(0, weight=1)
 
-    # Create a Treeview widget
     tree = ttk.Treeview(results_window)
-
-    # Define the columns
     tree["columns"] = list(dataframe.columns)
-    tree["show"] = "headings"  # Remove the first empty column
+    tree["show"] = "headings"
 
-    # Define column headings and format
     for col in dataframe.columns:
         tree.heading(col, text=col)
         tree.column(col, width=100, anchor="center")
 
-    # Insert the data into the Treeview
     for index, row in dataframe.iterrows():
         tree.insert("", "end", values=list(row))
 
     tree.pack(expand=True, fill='both')
 
-    # Add scrollbars
     scrollbar_y = Scrollbar(tree, orient=VERTICAL, command=tree.yview)
     scrollbar_y.pack(side=RIGHT, fill=Y)
     tree.config(yscrollcommand=scrollbar_y.set)
@@ -315,30 +281,47 @@ def displayResults(dataframe, pair, timeframe):
     scrollbar_x.pack(side=BOTTOM, fill=X)
     tree.config(xscrollcommand=scrollbar_x.set)
     
-    # Display results summary
-    try:
-        total_candles = len(dataframe)
-        total_subiu = len(dataframe[dataframe["direction"] == "subiu"])
-        total_desceu = len(dataframe[dataframe["direction"] == "desceu"])
-        percentage_up = total_subiu / total_candles * 100
-        percentage_down = total_desceu / total_candles * 100
-        delta_mean = dataframe["delta"].mean()
+    # Analyze the groups separated by NaN rows
+    total_candles = len(dataframe[pd.notna(dataframe['time'])])
+    data_groups = []
+    
+    # Identify groups based on NaN rows
+    mask = pd.notna(dataframe['time'])
+    group_boundaries = mask.ne(mask.shift()).cumsum()  # Group by consecutive non-NaN rows
+    grouped = dataframe.groupby(group_boundaries)
+    
+    # Perform analysis on each group
+    message_object = []
+    for group_num, group in grouped:
+        if pd.isna(group['time']).all():
+            continue  # Skip empty groups
         
-        message_object = [
-            f'Resultado {pair} - {total_candles} candles, {timeframe}', 
-            f'Total de candles analisados: {total_candles}',
-            f'Número de candles que subiram: {total_subiu} ',
-            f'Número de candles que desceram: {total_desceu}',
-            f'Média de delta (abertura-fechamento): {delta_mean}',
-            f'Subiu (%): {percentage_up:.2f}%     Desceu (%): {percentage_down:.2f}%',
-        ]
-        textWindow("Resultado", message_object)
-    except KeyError as e:
-        singleMessageWindow("Erro", f"Coluna ausente: {str(e)}")
-    except Exception as e:
-        singleMessageWindow("Erro", f"Erro ao calcular os resultados: {str(e)}")
+        # Find the first candle's open and the last candle's close
+        start_time = group['time'].iloc[0]
+        end_time = group['time'].iloc[-1]
+        first_open = group['open'].iloc[0]
+        last_close = group['close'].iloc[-1]
+        
+        total_subiu = len(group[group["direction"] == "subiu"])
+        total_desceu = len(group[group["direction"] == "desceu"])
+        percentage_up = total_subiu / len(group) * 100
+        percentage_down = total_desceu / len(group) * 100
+        delta_mean = group["delta"].mean()
+        
+        # Add group analysis to the message_object
+        message_object.append(f'Análise de {start_time} até {end_time}:')
+        message_object.append(f'Primeira vela: {first_open}, Última vela: {last_close}')
+        message_object.append(f'Número de candles que subiram: {total_subiu}, Número de candles que desceram: {total_desceu}')
+        message_object.append(f'Média de delta (abertura-fechamento): {delta_mean}')
+        message_object.append(f'Subiu (%): {percentage_up:.2f}%, Desceu (%): {percentage_down:.2f}%')
+        message_object.append('')  # Add a blank line between groups
+
+    # Display the message object in a new window
+    textWindow("Resultado", message_object)
+    
     mt5.shutdown()
     results_window.mainloop()
+
 
 
 if __name__ == "__main__":
