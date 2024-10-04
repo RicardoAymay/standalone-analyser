@@ -15,14 +15,12 @@ DAYS_CANDLE_COUNTER = {
 
 
 message_list = {
-    "mudancas": "Mudanças da versão 0.5beta",
-    "m1": "Alterado nome 'divergência' para 'delta'.",
-    "m2": "Exóticos e criptos podem ser analisados",
-    "m3": "Tela de boas vindas adicionada",
-    "m4": "Escolha de timeframe adicionada",
-    "m5": "Renomeada 'divergência' para delta, que é a diferença entre abertura e fechamento da vela.",
-    "m6": "A hora deve ser inserida no formato HH:MM. \n Exemplo: 08:45",
-    "m7": "O retorno de informação é de 1 vela por dia no timeframe escolhido."
+    "Como usar": "Mudanças da versão 0.6beta",
+    "m1": "Escolha o metatrader que quer usar, colocando o caminho do arquivo \n terminal64.exe",
+    "m2": "Escolha o par de moedas, em MAIÚSCULO e sem espaços antes ou depois",
+    "m3": "Escolher a hora a ser analisada. Deve estar de acordo com o timeframe escolhido. \n Escolher por exemplo 08:15 em H1 vai dar problema. \nA hora deve ser inserida no formato HH:MM. \n Exemplo: 08:45",
+    "m4": "Evite semanal e mensal",
+    "m7": "O retorno de informação é de 1 vela ou grupo de velas por dia no timeframe escolhido."
 }
 
 def sort_candles(df, target_time, associated_candles_string, candle_count, multiplier, pair, time_frame):
@@ -34,19 +32,23 @@ def sort_candles(df, target_time, associated_candles_string, candle_count, multi
 
     all_filtered_dfs = []
     open_close_list = []
+    open_close_with_date = []
     message_object = []
     high_low_list = []
+    high_low_list_with_date = []
     def organize_dataframe(filtered_df):
         open_first = filtered_df.iloc[0]['open'] #abertura da primeira vela do grupo
         close_last = filtered_df.iloc[-1]['close'] #fechamento da última vela do grupo
-        add_high = max(filtered_df['high'].values) #maior máximo do grupo
-        add_low = min(filtered_df['low'].values) #menor mínimo do grupo
+        max_high = max(filtered_df['high'].values) #maior máximo do grupo
+        max_low = min(filtered_df['low'].values) #menor mínimo do grupo
         date = filtered_df.iloc[0]['time']
         formatted_date = date.strftime('%d-%m (%A)')
-        high_low_difference = (add_high-add_low)*multiplier       
+        high_low_difference = (max_high-max_low)*multiplier       
         difference_open_close = (open_first - close_last)*multiplier
-        high_low_list.append(f'{formatted_date} -------------------------> {high_low_difference.round(2)} PONTOS')
+        high_low_list.append(high_low_difference.round(2))
+        high_low_list_with_date.append(f'{formatted_date} -------------------------> {high_low_difference.round(2)} PONTOS')
         open_close_list.append(difference_open_close.round(2))
+        open_close_with_date.append(f'{formatted_date} -------------------------> {difference_open_close.round(2)} PONTOS')
         empty_row = pd.DataFrame([[None] * len(filtered_df.columns)], columns=filtered_df.columns)
         filtered_df = pd.concat([filtered_df, empty_row], ignore_index=True)
         all_filtered_dfs.append(filtered_df)
@@ -77,15 +79,16 @@ def sort_candles(df, target_time, associated_candles_string, candle_count, multi
         pass
     else:
         pair_and_time = f'{pair} vela das {target_time}'
-    open_close_movement = f'Movimentação Abertura -> Fechamento: {max(open_close_list)}'
-    largest_movement = f'Maior movimento em cada dia: \n {high_low_list}'
-    median_movement = f'Movimentação média: {sum(open_close_list)/len(open_close_list)}'
-    highest_to_lowest = f'Maior movimentação no intervalo \n (ponto mais alto -> ponto mais baixo) \n {open_close_list}'
+    
+    largest_movement = f'Maior movimento em cada dia: \n {high_low_list_with_date}'
+    median_movement = f'Movimentação média da abertura ao fechamento: \n {sum(open_close_list)/len(open_close_list)} pontos'
+    median_high_low = f'Movimentação média de máximo e mínimo: {sum(high_low_list)/len(high_low_list)}'
+    highest_to_lowest = f'Movimentação da abertura ao fechamento \n {open_close_with_date}'
     
     combined_filtered_df = pd.concat(all_filtered_dfs, ignore_index=True)
     message_object.append(pair_and_time)
-    message_object.append(open_close_movement)
     message_object.append(median_movement)
+    message_object.append(median_high_low)
     message_object.append(largest_movement)
     message_object.append(highest_to_lowest)
     return combined_filtered_df, message_object
