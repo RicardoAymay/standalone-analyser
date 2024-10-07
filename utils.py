@@ -46,9 +46,9 @@ def sort_candles(df, target_time, associated_candles_string, candle_count, multi
         high_low_difference = (max_high-max_low)*multiplier       
         difference_open_close = (open_first - close_last)*multiplier
         high_low_list.append(high_low_difference.round(2))
-        high_low_list_with_date.append(f'{formatted_date} -------------------------> {high_low_difference.round(2)} PONTOS')
+        high_low_list_with_date.append(f'{formatted_date} -------------------> {high_low_difference.round(2)} PONTOS')
         open_close_list.append(difference_open_close.round(2))
-        open_close_with_date.append(f'{formatted_date} -------------------------> {difference_open_close.round(2)} PONTOS')
+        open_close_with_date.append(f'{formatted_date} -------------------> {difference_open_close.round(2)} PONTOS')
         empty_row = pd.DataFrame([[None] * len(filtered_df.columns)], columns=filtered_df.columns)
         filtered_df = pd.concat([filtered_df, empty_row], ignore_index=True)
         all_filtered_dfs.append(filtered_df)
@@ -66,23 +66,25 @@ def sort_candles(df, target_time, associated_candles_string, candle_count, multi
             start_index = max(0, target_index - candle_count)
             end_index = target_index + candle_count
             filtered_df = df.iloc[start_index:end_index + 1]
-            all_filtered_dfs.append(filtered_df)
+            organize_dataframe(filtered_df)
         elif associated_candles_string == "Nenhum":
             filtered_df = df.iloc[[target_index]]
-            all_filtered_dfs.append(filtered_df)
+            organize_dataframe(filtered_df)
     start_index_time = filtered_df.iloc[0]['time']
     start_index_hour = datetime.strptime(str(start_index_time), "%Y-%m-%d %H:%M:%S").time()
     if associated_candles_string in ["Antes", "Ambos"]:
         pair_and_time = f'{pair} vela das {start_index_hour} até {target_time} em {time_frame}'
     elif associated_candles_string == "Depois":
-        pair_and_time = f'{pair} vela das {target_time} até {start_index_hour} em {time_frame}'
+        end_index_time = filtered_df.iloc[-1]['time']
+        end_index_hour = datetime.strptime(str(end_index_time), "%Y-%m-%d %H:%M:%S").time()
+        pair_and_time = f'{pair} vela das {target_time} até {end_index_hour} em {time_frame}'
         pass
     else:
         pair_and_time = f'{pair} vela das {target_time}'
     
     largest_movement = f'Maior movimento em cada dia: \n {high_low_list_with_date}'
     median_movement = f'Movimentação média da abertura ao fechamento: \n {sum(open_close_list)/len(open_close_list)} pontos'
-    median_high_low = f'Movimentação média de máximo e mínimo: {sum(high_low_list)/len(high_low_list)}'
+    median_high_low = f'Movimentação média do ponto mais alto ao ponto mais baixo: {sum(high_low_list)/len(high_low_list)}'
     highest_to_lowest = f'Movimentação da abertura ao fechamento \n {open_close_with_date}'
     
     combined_filtered_df = pd.concat(all_filtered_dfs, ignore_index=True)
