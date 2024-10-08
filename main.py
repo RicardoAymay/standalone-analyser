@@ -6,7 +6,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 import threading
 from utils import *
-
+import tkinter as tk
 def singleMessageWindow(title, message):
     window = Tk()
     window.title(title)
@@ -23,13 +23,63 @@ def singleMessageWindow(title, message):
 def textWindow(title, message_object):
     window = Tk()
     window.title(title)
-    window.geometry('550x700')
+    window.geometry('550x800')
     window.configure(bg='#f0f0f0')
     for text_line in message_object:
         lbl = Label(window, text=text_line, bg='#f0f0f0', font=font.Font(family="Helvetica", size=10), wraplength=400)
-        lbl.pack(padx=20, pady=20)
+        lbl.pack(padx=20, pady=10)
     window.mainloop()
 
+
+def scrollWindow(title, message_object):
+    window = tk.Tk()
+    window.title(title)
+    window.geometry('830x900')
+    window.configure(bg='#f0f0f0')
+
+    # Create a frame for the canvas and scrollbar
+    main_frame = tk.Frame(window)
+    main_frame.pack(fill=tk.BOTH, expand=True)
+
+    # Create a canvas and a scrollbar
+    canvas = tk.Canvas(main_frame, bg='#f0f0f0')
+    scrollbar = tk.Scrollbar(main_frame, orient=tk.VERTICAL, command=canvas.yview)
+    scrollable_frame = tk.Frame(canvas, bg='#f0f0f0')
+
+    scrollable_frame.bind(
+        "<Configure>",
+        lambda e: canvas.configure(
+            scrollregion=canvas.bbox("all")
+        )
+    )
+
+    canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+    canvas.configure(yscrollcommand=scrollbar.set)
+
+    # Pack canvas and scrollbar
+    canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+    scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+    # Add content to the scrollable frame
+    for text_line in message_object:
+        if len(text_line) <= 200:  # Arbitrary length to switch between Label and Text
+            # Use Label for shorter lines
+            lbl = tk.Label(scrollable_frame, text=text_line, bg='#f0f0f0', font=font.Font(family="Helvetica", size=12), wraplength=400)
+            lbl.pack(padx=20, pady=10)
+        else:
+            # Use Text for longer lines
+            txt = tk.Text(scrollable_frame, height=14, wrap=tk.WORD, font=font.Font(family="Helvetica", size=12), bg='#f0f0f0')
+            txt.insert(tk.END, text_line)
+            txt.config(state=tk.DISABLED)  # Make the text widget read-only
+            txt.tag_config("center", justify=CENTER)
+            txt.tag_add("center", "1.0", "end")
+            txt.pack(padx=20, pady=10, fill=tk.BOTH, expand=True)
+
+    # Make the window responsive
+    window.columnconfigure(0, weight=1)
+    window.rowconfigure(0, weight=1)
+
+    window.mainloop()
 
 def labeledEntry(window, text, row, column, initial_value, width=50):
     lbl = Label(window, text=text, bg='#f0f0f0', font=font.Font(family="Helvetica", size=12))
@@ -46,8 +96,7 @@ def labeledEntry(window, text, row, column, initial_value, width=50):
     return entry
     
 #primeira tela
-welcome_message = "Bem vindo ao analisador de estratégia V0.5 alpha"
-
+welcome_message = "Bem vindo ao analisador de estratégia V1.0 TAURA"
 def startWindow():
     window = Tk()
     window.title(welcome_message)
@@ -99,7 +148,7 @@ def currencyPairWindow():
         analyzer_object_time: "08:00",
         analyzer_object_days: "10",
         analyser_object_associated_candles_string: ["Depois"],
-        analyser_object_associated_candles_number: 0
+        analyser_object_associated_candles_number: 5
     }
     
     entries = {}
@@ -152,7 +201,7 @@ def currencyPairWindow():
         if not analyzer_candles_1:
             singleMessageWindow("TÁ VAZIO", "Não sou vidente. Escreve antes, depois, ambos ou nenhum!") 
             return
-        
+        analyzer_candles_1.capitalize()
         if analyzer_candles_1 not in ["Antes", "Depois", "Ambos", "Nenhum"]:
             singleMessageWindow("ERRO", "Escreve antes, depois, ambos ou nenhum! \n Primeira letra maiúscula, por favor.") 
             return
@@ -173,6 +222,9 @@ def currencyPairWindow():
             if candle_numbers < 0:
                 singleMessageWindow("ERRO", "Eu podia tornar positivo automaticamente pra você, mas não quis. Escreve um número positivo!")
                 return
+            
+            if candle_numbers == 0:
+                singleMessageWindow("ERRO", 'Não tem como analizar zero velas associadas.')
             
             associated_candles = candle_numbers
         
@@ -224,14 +276,15 @@ def pairAnalysisPattern(pair, target_time_str, days_back, time_frame, associated
     
     df = pd.DataFrame(rates)
     df['time'] = pd.to_datetime(df['time'], unit='s')
-    return get_associated_candles(df, target_time, associated_candles_string, associated_candles_number, pair, time_frame)
+    return get_associated_candles(df, target_time, associated_candles_string, associated_candles_number, pair, time_frame) # retorna um dataframe e message_object
     
 
 def get_associated_candles(df, target_time, associated_candles_string, candle_count, pair, time_frame):
 
     multiplier = 10 ** mt5.symbol_info(pair).digits
     combined_filtered_df, message_object = sort_candles(df, target_time, associated_candles_string, candle_count, multiplier, pair, time_frame)
-    
+    config_message = f'Configuração escolhida: \n {pair} \n Hora: {target_time}; \n Velas associadas: {candle_count} velas/{associated_candles_string} \n Timeframe: {time_frame}'
+    message_object.append(config_message)
     reduced_df = combined_filtered_df.drop(columns=['real_volume', 'spread', 'tick_volume'])
     reduced_df['direction'] = reduced_df.apply(lambda row: "subiu" if pd.notna(row['open']) and pd.notna(row['close']) and row['close'] > row['open'] 
                                                else ("desceu" if pd.notna(row['open']) and pd.notna(row['close']) and row['close'] < row['open'] 
@@ -252,7 +305,8 @@ def displayResults(dataframe, message_object):
         singleMessageWindow("Erro", "Nenhum dado disponível para exibir.")
         return
     
-    # Initialize the window and display the table
+    start_time = dataframe.iloc[0]['time']
+    start_hour = start_time.time()
     results_window = Tk()
     results_window.title("Resultados da Análise")
     results_window.geometry('800x400+700+100')
@@ -267,9 +321,15 @@ def displayResults(dataframe, message_object):
     for col in dataframe.columns:
         tree.heading(col, text=col)
         tree.column(col, width=100, anchor="center")
-
+        
+    tree.tag_configure("highlight", background="#a3c9f7")
+    
     for index, row in dataframe.iterrows():
-        tree.insert("", "end", values=list(row))
+        row_time = row['time'].time()
+        if row_time == start_hour:
+            tree.insert("", "end", values=list(row), tags=("highlight",))
+        else:
+            tree.insert("", "end", values=list(row))
 
     tree.pack(expand=True, fill='both')
 
@@ -282,11 +342,9 @@ def displayResults(dataframe, message_object):
     tree.config(xscrollcommand=scrollbar_x.set)   
     
     mt5.shutdown()
-    textWindow("Resultado", message_object)
+    scrollWindow("Resultado", message_object)
     results_window.mainloop()
  
-    
-
 
 if __name__ == "__main__":
     main()
