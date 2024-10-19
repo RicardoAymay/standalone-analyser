@@ -34,7 +34,7 @@ def textWindow(title, message_object):
 def scrollWindow(title, message_object):
     window = tk.Tk()
     window.title(title)
-    window.geometry('830x900')
+    window.geometry('830x1500')
     window.configure(bg='#f0f0f0')
 
     # Create a frame for the canvas and scrollbar
@@ -233,7 +233,8 @@ def currencyPairWindow():
         if result is not None:
             displayResults(result, message_object)
         else:
-            singleMessageWindow("Erro", "Deu ruim")
+            error_code, error_message = mt5.last_error()
+            singleMessageWindow("Erro", f'Deu Ruim \n Error Code: {error_code}, Message: {error_message}')
 
     btnAnalisar = Button(window, text="Analisar", command=onClickAnalyze, cursor="hand2", font=font.Font(family="Helvetica", size=12))
     btnAnalisar.grid(column=0, row=len(analyser_object)*2, padx=10, pady=10, sticky="ew")
@@ -276,14 +277,14 @@ def pairAnalysisPattern(pair, target_time_str, days_back, time_frame, associated
     
     df = pd.DataFrame(rates)
     df['time'] = pd.to_datetime(df['time'], unit='s')
-    return get_associated_candles(df, target_time, associated_candles_string, associated_candles_number, pair, time_frame) # retorna um dataframe e message_object
+    return get_associated_candles(df, target_time, associated_candles_string, associated_candles_number, pair, time_frame, days_back) # retorna um dataframe e message_object
     
 
-def get_associated_candles(df, target_time, associated_candles_string, candle_count, pair, time_frame):
+def get_associated_candles(df, target_time, associated_candles_string, candle_count, pair, time_frame, days_back):
 
     multiplier = 10 ** mt5.symbol_info(pair).digits
-    combined_filtered_df, message_object = sort_candles(df, target_time, associated_candles_string, candle_count, multiplier, pair, time_frame)
-    config_message = f'Configuração escolhida: \n {pair} \n Hora: {target_time}; \n Velas associadas: {candle_count} velas/{associated_candles_string} \n Timeframe: {time_frame}'
+    combined_filtered_df, message_object = sort_candles(df, target_time, associated_candles_string, candle_count, multiplier, pair, time_frame, days_back)
+    config_message = f'Configuração escolhida: \n {pair} \n Hora: {target_time}; \n Velas associadas: {candle_count} velas/{associated_candles_string} \n Timeframe: {time_frame} \n Dias: {days_back}'
     message_object.append(config_message)
     reduced_df = combined_filtered_df.drop(columns=['real_volume', 'spread', 'tick_volume'])
     reduced_df['direction'] = reduced_df.apply(lambda row: "subiu" if pd.notna(row['open']) and pd.notna(row['close']) and row['close'] > row['open'] 

@@ -25,7 +25,7 @@ message_list = {
     "m7": "O retorno de informação é de 1 vela ou grupo de velas por dia no timeframe escolhido."
 }
 
-def sort_candles(df, target_time, associated_candles_string, candle_count, multiplier, pair, time_frame):
+def sort_candles(df, target_time, associated_candles_string, candle_count, multiplier, pair, time_frame, days_back):
     matching_indices = df.index[df['time'].dt.time == target_time].tolist()
     
     if not matching_indices:
@@ -38,25 +38,40 @@ def sort_candles(df, target_time, associated_candles_string, candle_count, multi
     message_object = []
     high_low_list = []
     high_low_list_with_date = []
+    open_low_list = []
+    open_high_list = []
+    open_high_list_with_date = []
+    open_low_list_with_date = []
     
     def organize_dataframe(filtered_df):
-        open_first = filtered_df.iloc[0]['open'] #abertura da primeira vela do grupo
-        close_last = filtered_df.iloc[-1]['close'] #fechamento da última vela do grupo
-        max_high = max(filtered_df['high'].values) #maior máximo do grupo
-        max_low = min(filtered_df['low'].values) #menor mínimo do grupo
+        open_first = filtered_df.iloc[0]['open']  # abertura da primeira vela do grupo
+        close_last = filtered_df.iloc[-1]['close']  # fechamento da última vela do grupo
+        max_high = max(filtered_df['high'].values)  # maior máximo do grupo
+        max_low = min(filtered_df['low'].values)  # menor mínimo do grupo
         date = filtered_df.iloc[0]['time']
         formatted_date = date.strftime('%d-%m (%A)')
-        
-        high_low_difference = (max_high-max_low)*multiplier       
-        difference_open_close = (open_first - close_last)*multiplier
-        
+
+        open_high_group = (max_high - open_first) * multiplier
+        open_high_list.append(open_high_group.round(2))
+        open_high_message = f'{formatted_date} < ------ > {open_high_group.round(2)}'
+        open_high_list_with_date.append(open_high_message)
+
+        open_low_group = (max_low - open_first) * multiplier
+        open_low_list.append(open_low_group.round(2))
+
+        open_low_message = f'{formatted_date} < ------ > {open_low_group.round(2)}'
+        open_low_list_with_date.append(open_low_message)
+
+        high_low_difference = (max_high - max_low) * multiplier
+        difference_open_close = (close_last - open_first) * multiplier
+
         high_low_list.append(high_low_difference.round(2))
-        date_hl_diff_rounded = f' {formatted_date} {high_low_difference.round(2)} PONTOS'
+        date_hl_diff_rounded = f' {formatted_date} < ------ > {high_low_difference.round(2)} PONTOS'
         high_low_list_with_date.append(date_hl_diff_rounded)
-        
+
         open_close_list.append(difference_open_close.round(2))
         open_close_with_date.append(f'{formatted_date} < ------ > {difference_open_close.round(2)} PONTOS')
-        
+
         all_filtered_dfs.append(filtered_df)
         return filtered_df
     
@@ -95,13 +110,22 @@ def sort_candles(df, target_time, associated_candles_string, candle_count, multi
     else:
         pair_and_time = f'{pair} vela das {target_time}'
     
-    #formatting displayed data for better visualizaion    
-    open_close_with_date = ', '.join(open_close_with_date)
-    open_close_with_date = open_close_with_date.replace(',', "\n")
     
-    high_low_list_with_date = ', '.join(open_close_with_date)
-    high_low_list_with_date = open_close_with_date.replace(',', '\n')
+    open_close_with_date = '\n'.join(open_close_with_date)
+    high_low_list_with_date = '\n'.join(high_low_list_with_date)
+    open_low_list_with_date = '\n'.join(open_low_list_with_date)
+    open_high_list_with_date = '\n'.join(open_high_list_with_date)
+    subiu_grupo = 0
+    desceu_grupo = 0
     
+    for hlcount in open_close_list:
+        if hlcount > 0:
+            subiu_grupo += 1
+        if hlcount <= 0:
+            desceu_grupo +=1
+        else:
+            singleMessageWindow("Erro", "Erro de valor inválido. Tente novamente ou fale com o desenvolvedor")    
+        
     
     #messages displayed based on the results
     largest_movement = f'Maior movimento em cada dia: \n {high_low_list_with_date}'
@@ -114,11 +138,15 @@ def sort_candles(df, target_time, associated_candles_string, candle_count, multi
     rounded_avg_high_low = avg_high_low.round(2)
     average_high_low_msg = f'Média do ponto mais alto ao ponto mais baixo: {rounded_avg_high_low}'
     highest_to_lowest = f'Média abertura ao fechamento \n {open_close_with_date}'
+    open_to_high_str = f'Abertura até o ponto mais alto \n {open_high_list_with_date}'
+    open_to_low_str = f'Abertura até o ponto mais baixo \n {open_low_list_with_date}' 
     
     combined_filtered_df = pd.concat(all_filtered_dfs, ignore_index=True)
     message_object.append(pair_and_time)
     message_object.append(average_movement_oc)
     message_object.append(average_high_low_msg)
+    message_object.append(open_to_high_str)
+    message_object.append(open_to_low_str)
     message_object.append(largest_movement)
     message_object.append(highest_to_lowest)
     return combined_filtered_df, message_object
