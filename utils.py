@@ -115,17 +115,25 @@ def sort_candles(df, target_time, associated_candles_string, candle_count, multi
     high_low_list_with_date = '\n'.join(high_low_list_with_date)
     open_low_list_with_date = '\n'.join(open_low_list_with_date)
     open_high_list_with_date = '\n'.join(open_high_list_with_date)
-    subiu_grupo = 0
-    desceu_grupo = 0
     
-    for hlcount in open_close_list:
-        if hlcount > 0:
-            subiu_grupo += 1
-        if hlcount <= 0:
-            desceu_grupo +=1
-        else:
-            singleMessageWindow("Erro", "Erro de valor inválido. Tente novamente ou fale com o desenvolvedor")    
+    
+    def up_down_percentage_message():
+        subiu_grupo = 0
+        desceu_grupo = 0
         
+        for hlcount in open_close_list:
+            if hlcount > 0:
+                subiu_grupo += 1
+            if hlcount <= 0:
+                desceu_grupo +=1
+            else:
+                continue
+        
+        up_percentage = (subiu_grupo/len(open_close_list))*100
+        print(f'Porcentagem de subida: {up_percentage}')
+        down_percentage = (desceu_grupo/len(open_close_list))*100
+        print(f'Porcentagem de descida: {down_percentage}')
+        return f'Subiu: {up_percentage}% \n Desceu: {down_percentage}% \n Amostra: {len(open_close_list)}'
     
     #messages displayed based on the results
     largest_movement = f'Maior movimento em cada dia: \n {high_low_list_with_date}'
@@ -144,6 +152,7 @@ def sort_candles(df, target_time, associated_candles_string, candle_count, multi
     combined_filtered_df = pd.concat(all_filtered_dfs, ignore_index=True)
     message_object.append(pair_and_time)
     message_object.append(average_movement_oc)
+    message_object.append(up_down_percentage_message())
     message_object.append(average_high_low_msg)
     message_object.append(open_to_high_str)
     message_object.append(open_to_low_str)
