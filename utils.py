@@ -130,9 +130,7 @@ def sort_candles(df, target_time, associated_candles_string, candle_count, multi
                 continue
         
         up_percentage = (subiu_grupo/len(open_close_list))*100
-        print(f'Porcentagem de subida: {up_percentage}')
         down_percentage = (desceu_grupo/len(open_close_list))*100
-        print(f'Porcentagem de descida: {down_percentage}')
         return f'Subiu: {up_percentage}% \n Desceu: {down_percentage}% \n Amostra: {len(open_close_list)}'
     
     #messages displayed based on the results
