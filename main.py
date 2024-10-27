@@ -6,7 +6,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 import threading
 from utils import *
-
+import tkinter as tk
 def singleMessageWindow(title, message):
     window = Tk()
     window.title(title)
@@ -23,13 +23,63 @@ def singleMessageWindow(title, message):
 def textWindow(title, message_object):
     window = Tk()
     window.title(title)
-    window.geometry('550x700')
+    window.geometry('550x800')
     window.configure(bg='#f0f0f0')
     for text_line in message_object:
         lbl = Label(window, text=text_line, bg='#f0f0f0', font=font.Font(family="Helvetica", size=10), wraplength=400)
-        lbl.pack(padx=20, pady=20)
+        lbl.pack(padx=20, pady=10)
     window.mainloop()
 
+
+def scrollWindow(title, message_object):
+    window = tk.Tk()
+    window.title(title)
+    window.geometry('830x1500')
+    window.configure(bg='#f0f0f0')
+
+    # Create a frame for the canvas and scrollbar
+    main_frame = tk.Frame(window)
+    main_frame.pack(fill=tk.BOTH, expand=True)
+
+    # Create a canvas and a scrollbar
+    canvas = tk.Canvas(main_frame, bg='#f0f0f0')
+    scrollbar = tk.Scrollbar(main_frame, orient=tk.VERTICAL, command=canvas.yview)
+    scrollable_frame = tk.Frame(canvas, bg='#f0f0f0')
+
+    scrollable_frame.bind(
+        "<Configure>",
+        lambda e: canvas.configure(
+            scrollregion=canvas.bbox("all")
+        )
+    )
+
+    canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+    canvas.configure(yscrollcommand=scrollbar.set)
+
+    # Pack canvas and scrollbar
+    canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+    scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+    # Add content to the scrollable frame
+    for text_line in message_object:
+        if len(text_line) <= 200:  # Arbitrary length to switch between Label and Text
+            # Use Label for shorter lines
+            lbl = tk.Label(scrollable_frame, text=text_line, bg='#f0f0f0', font=font.Font(family="Helvetica", size=12), wraplength=400)
+            lbl.pack(padx=20, pady=10)
+        else:
+            # Use Text for longer lines
+            txt = tk.Text(scrollable_frame, height=14, wrap=tk.WORD, font=font.Font(family="Helvetica", size=12), bg='#f0f0f0')
+            txt.insert(tk.END, text_line)
+            txt.config(state=tk.DISABLED)  # Make the text widget read-only
+            txt.tag_config("center", justify=CENTER)
+            txt.tag_add("center", "1.0", "end")
+            txt.pack(padx=20, pady=10, fill=tk.BOTH, expand=True)
+
+    # Make the window responsive
+    window.columnconfigure(0, weight=1)
+    window.rowconfigure(0, weight=1)
+
+    window.mainloop()
 
 def labeledEntry(window, text, row, column, initial_value, width=50):
     lbl = Label(window, text=text, bg='#f0f0f0', font=font.Font(family="Helvetica", size=12))
@@ -46,9 +96,10 @@ def labeledEntry(window, text, row, column, initial_value, width=50):
     return entry
     
 #primeira tela
+welcome_message = "Bem vindo ao analisador de estratégia V1.0 TAURA"
 def startWindow():
     window = Tk()
-    window.title("Bem vindo ao analisador de estratégia V0.1alpha")
+    window.title(welcome_message)
     window.geometry('500x200')  
     window.configure(bg='#f0f0f0')  
     
@@ -70,12 +121,10 @@ def startWindow():
 
 def main():
     startMessageObject = [
-    "Bem vindo ao analisador de estratégia V0.2alpha",
-    "Mudanças na versão 0.5beta: \n - Alterado nome 'divergência' para 'delta'. \n - Exóticos e criptos podem ser analisados \n - Tela de boas vindas adicionada \n - Escolha de timeframe adicionada \n - Renomeada 'divergência' para delta, que é a diferença entre abertura e fechamento da vela.",
-    "Para começar, clique em 'Próximo' e insira o caminho do MetaTrader 5 que deseja analisar. \n Exemplo: C:/Program Files/MetaTrader 5/terminal64.exe \n Deve conter o terminal64.exe no final.",
-    "A hora deve ser inserida no formato HH:MM. \n Exemplo: 08:45",
-    "O retorno de informação é de 1 vela por dia no timeframe escolhido. \n O número de dias é a quantidade de velas que deseja analisar.",
+    f'{welcome_message} \n',
     ]
+    for message in message_list.values():
+        startMessageObject.append(f'{message} \n')
     text_window_thread = threading.Thread(target=textWindow, args=("Bem vindo!", startMessageObject))
     text_window_thread.start()
     startWindow()
@@ -91,15 +140,15 @@ def currencyPairWindow():
     analyzer_object_timeframe = "Escolha o timeframe"
     analyzer_object_time = "Escolha a hora (HH:MM) para analisar \n Deve estar de acordo com o timeframe"
     analyzer_object_days = "Desde quando? Inserir número de dias"
-    analyser_object_associated_candles = "Antes, depois, ambos ou nenhum?"
-    analyser_object_associated_candles2 = "Quantas velas associadas deseja analisar?"
+    analyser_object_associated_candles_string = "Antes, depois, ambos ou nenhum?"
+    analyser_object_associated_candles_number = "Quantas velas associadas deseja analisar?"
     analyser_object = {
         analyzer_object_pair: "EURUSD",
         analyzer_object_timeframe: "M5",
         analyzer_object_time: "08:00",
         analyzer_object_days: "10",
-        analyser_object_associated_candles: ["Antes", "Depois", "Ambos", "Nenhum"],
-        analyser_object_associated_candles2: 1
+        analyser_object_associated_candles_string: ["Depois"],
+        analyser_object_associated_candles_number: 5
     }
     
     entries = {}
@@ -107,6 +156,9 @@ def currencyPairWindow():
             entries[label] = labeledEntry(window, label, row=i*2, column=0, initial_value=default_value)
 
     def onClickAnalyze():
+        if not mt5.initialize():
+            singleMessageWindow("Erro", "Erro ao conectar ao MetaTrader 5.")
+            return
         pair = entries[analyzer_object_pair].get().upper()  # Get the currency pair and convert to uppercase
         if not pair:
             singleMessageWindow("TÁ VAZIO", "Não tem moeda fantasma. Escreve ali!")
@@ -145,18 +197,18 @@ def currencyPairWindow():
         if days_back < 0:
             days_back = abs(days_back)
         
-        analyzer_candles_1 = entries[analyser_object_associated_candles].get()
+        analyzer_candles_1 = entries[analyser_object_associated_candles_string].get()
         if not analyzer_candles_1:
             singleMessageWindow("TÁ VAZIO", "Não sou vidente. Escreve antes, depois, ambos ou nenhum!") 
             return
-        
+        analyzer_candles_1.capitalize()
         if analyzer_candles_1 not in ["Antes", "Depois", "Ambos", "Nenhum"]:
-            singleMessageWindow("ERRO", "Escreve antes, depois, ambos ou nenhum!") 
+            singleMessageWindow("ERRO", "Escreve antes, depois, ambos ou nenhum! \n Primeira letra maiúscula, por favor.") 
             return
         
         associated_candles = 0
+        candle_numbers_str = entries[analyser_object_associated_candles_number].get()
         if analyzer_candles_1 != "Nenhum":
-            candle_numbers_str = entries[analyser_object_associated_candles2].get()
             if not candle_numbers_str:
                 singleMessageWindow("TÁ VAZIO", "Não sou vidente. Escreve a quantidade de velas!") 
                 return
@@ -171,21 +223,24 @@ def currencyPairWindow():
                 singleMessageWindow("ERRO", "Eu podia tornar positivo automaticamente pra você, mas não quis. Escreve um número positivo!")
                 return
             
+            if candle_numbers == 0:
+                singleMessageWindow("ERRO", 'Não tem como analizar zero velas associadas.')
+            
             associated_candles = candle_numbers
-                
-        result = pairAnalysisPattern(pair, time, days_back, time_frame, associated_candles)
-        print(result)
+        
+        result, message_object = pairAnalysisPattern(pair, time, days_back, time_frame, associated_candles, analyzer_candles_1)
+   
         if result is not None:
-            displayResults(result)
+            displayResults(result, message_object)
         else:
-            singleMessageWindow("Erro", "Deu ruim")
+            error_code, error_message = mt5.last_error()
+            singleMessageWindow("Erro", f'Deu Ruim \n Error Code: {error_code}, Message: {error_message}')
 
     btnAnalisar = Button(window, text="Analisar", command=onClickAnalyze, cursor="hand2", font=font.Font(family="Helvetica", size=12))
     btnAnalisar.grid(column=0, row=len(analyser_object)*2, padx=10, pady=10, sticky="ew")
 
     window.mainloop()
-
-    
+   
     
 def closeWindowAndConnect(window, path):
     
@@ -198,19 +253,13 @@ def closeWindowAndConnect(window, path):
         singleMessageWindow("Erro", f"Erro ao conectar ao MetaTrader 5. Código de erro:\n {error_code}")
         
 
-def pairAnalysisPattern(pair, target_time_str, days_back, time_frame, associated_candles=1, associated_candles2="Nenhum"):
+def pairAnalysisPattern(pair, target_time_str, days_back, time_frame, associated_candles_number=0, associated_candles_string="Nenhum"):
     if not mt5.initialize():
         singleMessageWindow("Erro", "Erro ao conectar ao MetaTrader 5.")
         return None
     
-    target_time = datetime.strptime(target_time_str, "%H:%M").time() # vela escolhida para análise
-    target_time_2 = datetime.strptime(target_time_2_str, "%H:%M").time() # tempos das velas anteriores escolhidas para análise
-    target_time_3 = datetime.strptime(target_time_3_str, "%H:%M").time() # tempo das velas posteriores escolhidas para análise
-    
-    
-        
-    
-    
+    target_time = datetime.strptime(target_time_str, "%H:%M").time()
+
     start_date = datetime.now() - timedelta(days=days_back)
     start_date = start_date.replace(hour=target_time.hour, minute=target_time.minute, second=0, microsecond=0)
     
@@ -220,56 +269,27 @@ def pairAnalysisPattern(pair, target_time_str, days_back, time_frame, associated
     else:
         number_of_candles = DAYS_CANDLE_COUNTER.get(time_frame) * days_back  
     
-    
-    
     rates = mt5.copy_rates_from(pair, time_frame_value, start_date, number_of_candles)
     if rates is None or len(rates) == 0:
         print("Não foi possível recuperar as taxas para o par de moedas especificado.")
         mt5.shutdown()
         return None
     
-
     df = pd.DataFrame(rates)
     df['time'] = pd.to_datetime(df['time'], unit='s')
-    return df
+    return get_associated_candles(df, target_time, associated_candles_string, associated_candles_number, pair, time_frame, days_back) # retorna um dataframe e message_object
     
 
-def get_associated_candles(df, target_time, associated_candles2, candle_count, pair):
-    if associated_candles2 == "Antes":
-        # Add candles before the specified time
-        filtered_df = df[df['time'].dt.time == target_time]
-        # Get the index of the target time row
-        target_index = filtered_df.index[0]
-        # Select previous candles
-        filtered_df = df.iloc[max(0, target_index - candle_count):target_index]
-    
-    elif associated_candles2 == "Depois":
-        # Add candles after the specified time
-        filtered_df = df[df['time'].dt.time == target_time]
-        target_index = filtered_df.index[0]
-        # Select next candles
-        filtered_df = df.iloc[target_index:target_index + candle_count]
-    
-    elif associated_candles2 == "Ambos":
-        # Add both before and after candles
-        filtered_df = df[df['time'].dt.time == target_time]
-        target_index = filtered_df.index[0]
-        # Select previous and next candles
-        start_index = max(0, target_index - candle_count)
-        end_index = target_index + candle_count
-        filtered_df = df.iloc[start_index:end_index]
-    
-    elif associated_candles2 == "Nenhum":
-        # No associated candles, just filter by the target time
-        filtered_df = df[df['time'].dt.time == target_time]
-    
-    else:
-        singleMessageWindow("Erro", "Erro ao selecionar velas associadas.")
-        return None
-        
+def get_associated_candles(df, target_time, associated_candles_string, candle_count, pair, time_frame, days_back):
+
     multiplier = 10 ** mt5.symbol_info(pair).digits
-    reduced_df = filtered_df.drop(columns=['real_volume', 'spread', 'tick_volume'])
-    reduced_df['direction'] = reduced_df.apply(lambda row: "subiu" if row['close'] > row['open'] else "desceu", axis=1)
+    combined_filtered_df, message_object = sort_candles(df, target_time, associated_candles_string, candle_count, multiplier, pair, time_frame, days_back)
+    config_message = f'Configuração escolhida: \n {pair} \n Hora: {target_time}; \n Velas associadas: {candle_count} velas/{associated_candles_string} \n Timeframe: {time_frame} \n Dias: {days_back}'
+    message_object.append(config_message)
+    reduced_df = combined_filtered_df.drop(columns=['real_volume', 'spread', 'tick_volume'])
+    reduced_df['direction'] = reduced_df.apply(lambda row: "subiu" if pd.notna(row['open']) and pd.notna(row['close']) and row['close'] > row['open'] 
+                                               else ("desceu" if pd.notna(row['open']) and pd.notna(row['close']) and row['close'] < row['open'] 
+                                               else None), axis=1)
     reduced_df['delta'] = reduced_df['close'] - reduced_df['open']
     reduced_df['delta'] = reduced_df['delta'].abs() * multiplier
     reduced_df['subida máxima'] = reduced_df.apply(lambda row: row['high'] - row['open'], axis=1).round(5) * multiplier
@@ -278,15 +298,16 @@ def get_associated_candles(df, target_time, associated_candles2, candle_count, p
 
     mt5.shutdown()
     
-    return reduced_df
+    return reduced_df, message_object
 
 #terceira e quarta tela
-def displayResults(dataframe):
+def displayResults(dataframe, message_object):
     if dataframe is None or dataframe.empty:
         singleMessageWindow("Erro", "Nenhum dado disponível para exibir.")
         return
-    print('df1')
-    # Create a new window
+    
+    start_time = dataframe.iloc[0]['time']
+    start_hour = start_time.time()
     results_window = Tk()
     results_window.title("Resultados da Análise")
     results_window.geometry('800x400+700+100')
@@ -294,58 +315,37 @@ def displayResults(dataframe):
     results_window.grid_columnconfigure(0, weight=1)
     results_window.grid_rowconfigure(0, weight=1)
 
-    # Create a Treeview widget
     tree = ttk.Treeview(results_window)
-
-    # Define the columns
     tree["columns"] = list(dataframe.columns)
-    tree["show"] = "headings"  # Remove the first empty column
+    tree["show"] = "headings"
 
-    # Define column headings and format
     for col in dataframe.columns:
         tree.heading(col, text=col)
         tree.column(col, width=100, anchor="center")
-
-    # Insert the data into the Treeview
+        
+    tree.tag_configure("highlight", background="#a3c9f7")
+    
     for index, row in dataframe.iterrows():
-        tree.insert("", "end", values=list(row))
+        row_time = row['time'].time()
+        if row_time == start_hour:
+            tree.insert("", "end", values=list(row), tags=("highlight",))
+        else:
+            tree.insert("", "end", values=list(row))
 
     tree.pack(expand=True, fill='both')
 
-    # Add scrollbars
     scrollbar_y = Scrollbar(tree, orient=VERTICAL, command=tree.yview)
     scrollbar_y.pack(side=RIGHT, fill=Y)
     tree.config(yscrollcommand=scrollbar_y.set)
 
     scrollbar_x = Scrollbar(tree, orient=HORIZONTAL, command=tree.xview)
     scrollbar_x.pack(side=BOTTOM, fill=X)
-    tree.config(xscrollcommand=scrollbar_x.set)
+    tree.config(xscrollcommand=scrollbar_x.set)   
     
-    # Display results summary
-    try:
-        total_candles = len(dataframe)
-        total_subiu = len(dataframe[dataframe["direction"] == "subiu"])
-        total_desceu = len(dataframe[dataframe["direction"] == "desceu"])
-        percentage_up = total_subiu / total_candles * 100
-        percentage_down = total_desceu / total_candles * 100
-        delta_mean = dataframe["delta"].mean()
-        
-        message_object = [ 
-            f'Total de candles analisados: {total_candles}',
-            f'Número de candles que subiram: {total_subiu} ',
-            f'Número de candles que desceram: {total_desceu}',
-            f'Média de delta (abertura-fechamento): {delta_mean}',
-            f'Subiu (%): {percentage_up:.2f}%     Desceu (%): {percentage_down:.2f}%',
-        ]
-        textWindow("Resultado", message_object)
-    except KeyError as e:
-        singleMessageWindow("Erro", f"Coluna ausente: {str(e)}")
-    except Exception as e:
-        singleMessageWindow("Erro", f"Erro ao calcular os resultados: {str(e)}")
-    
+    mt5.shutdown()
+    scrollWindow("Resultado", message_object)
     results_window.mainloop()
-
-
+ 
 
 if __name__ == "__main__":
     main()
