@@ -56,7 +56,7 @@ def sort_candles(df, target_time, associated_candles_string, candle_count, multi
         open_high_message = f'{formatted_date} < ------ > {open_high_group.round(2)}'
         open_high_list_with_date.append(open_high_message)
 
-        open_low_group = (max_low - open_first) * multiplier
+        open_low_group = (open_first - max_low ) * multiplier
         open_low_list.append(open_low_group.round(2))
 
         open_low_message = f'{formatted_date} < ------ > {open_low_group.round(2)}'
@@ -143,7 +143,7 @@ def sort_candles(df, target_time, associated_candles_string, candle_count, multi
     avg_high_low = sum(high_low_list)/len(high_low_list)
     rounded_avg_high_low = avg_high_low.round(2)
     average_high_low_msg = f'Média do ponto mais alto ao ponto mais baixo: {rounded_avg_high_low}'
-    highest_to_lowest = f'Média abertura ao fechamento \n {open_close_with_date}'
+    highest_to_lowest = f'Abertura ao fechamento \n {open_close_with_date}'
     open_to_high_str = f'Abertura até o ponto mais alto \n {open_high_list_with_date}'
     open_to_low_str = f'Abertura até o ponto mais baixo \n {open_low_list_with_date}' 
     
