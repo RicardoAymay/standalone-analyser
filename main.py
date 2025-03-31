@@ -267,7 +267,8 @@ def pairAnalysisPattern(pair, target_time_str, days_back, time_frame, associated
     if time_frame == "MN" or time_frame == "W1":
         number_of_candles = days_back
     else:
-        number_of_candles = DAYS_CANDLE_COUNTER.get(time_frame) * days_back  
+        number_of_candles = DAYS_CANDLE_COUNTER.get(time_frame) * days_back 
+        print(f'The number of candles is') 
     
     rates = mt5.copy_rates_from(pair, time_frame_value, start_date, number_of_candles)
     if rates is None or len(rates) == 0:
